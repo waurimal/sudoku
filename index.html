@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스도쿠 게임 (Sudoku)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            touch-action: manipulation;
+        }
+        /* 스크롤바 숨기기 (키패드 가로 스크롤용) */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* 그리드 보더 박스 처리 */
+        .sudoku-cell {
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800 pb-10">
+
+    <div class="max-w-lg mx-auto pt-8 px-4">
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">스도쿠</h1>
+            <p class="text-gray-500 text-sm">두뇌를 깨우는 숫자 퍼즐</p>
+        </header>
+
+        <!-- Settings Area -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-end justify-between">
+            <div class="flex-1 min-w-[120px]">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">크기 (Grid)</label>
+                <select id="size-select" class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors">
+                    <option value="4">4x4 (입문자용)</option>
+                    <option value="9" selected>9x9 (표준)</option>
+                    <option value="16">16x16 (전문가용)</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[120px]">
+                <label class="block text-xs font-semibold text-gray-500 mb-1">난이도 (1-10)</label>
+                <select id="diff-select" class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 outline-none transition-colors">
+                    <option value="1">1 (아주 쉬움)</option>
+                    <option value="3">3 (쉬움)</option>
+                    <option value="5" selected>5 (보통)</option>
+                    <option value="7">7 (어려움)</option>
+                    <option value="10">10 (아주 어려움)</option>
+                </select>
+            </div>
+            <button id="new-game-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg px-5 py-2.5 transition-colors shadow-sm active:scale-95">
+                새 게임
+            </button>
+        </div>
+
+        <!-- Sudoku Board -->
+        <div class="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-6 w-full mx-auto" style="max-width: 500px;">
+            <div id="board-container" class="grid w-full aspect-square border-2 border-gray-800">
+                <!-- Cells will be generated here -->
+            </div>
+        </div>
+
+        <!-- Controls Area -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-4 flex justify-center gap-4">
+            <button id="btn-erase" class="flex flex-col items-center justify-center w-16 h-16 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors active:scale-95">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                <span class="text-xs font-semibold">지우기</span>
+            </button>
+            <button id="btn-hint" class="flex flex-col items-center justify-center w-16 h-16 rounded-xl hover:bg-blue-50 text-blue-600 transition-colors active:scale-95">
+                <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                <span class="text-xs font-semibold">힌트</span>
+            </button>
+        </div>
+
+        <!-- Numpad (Scrollable single row of squares) -->
+        <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
+            <!-- 간격을 gap-0.5로 더 줄여 공간 확보 -->
+            <div id="numpad-container" class="flex overflow-x-auto gap-0.5 sm:gap-1 py-2 hide-scrollbar justify-center">
+                <!-- Numbers generated here -->
+            </div>
+            <p class="text-center text-xs text-gray-400 mt-2">화면이 작을 경우 좌우로 스와이프하여 더 볼 수 있습니다.</p>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victory-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center backdrop-blur-sm px-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">축하합니다!</h2>
+            <p class="text-gray-600 mb-6">스도쿠 퍼즐을 성공적으로 풀었습니다.</p>
+            <button onclick="closeModalAndNewGame()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-colors">
+                새 게임 시작
+            </button>
+        </div>
+    </div>
+
+    <!-- Hint Quiz Modal -->
+    <div id="quiz-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center backdrop-blur-sm px-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full transform scale-95 transition-transform duration-300">
+            <h2 class="text-xl font-bold text-gray-800 mb-2">힌트 퀴즈</h2>
+            <p class="text-sm text-gray-600 mb-4">힌트를 얻으려면 다음 뜻을 가진 영단어를 맞혀보세요!</p>
+            <div class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-xl text-center shadow-inner">
+                <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Meaning</span>
+                <div id="quiz-meaning" class="font-bold text-2xl text-blue-600 mt-1">
+                    <!-- 뜻 렌더링 -->
+                </div>
+            </div>
+            <input type="text" id="quiz-input" class="w-full border border-gray-300 rounded-xl px-4 py-3 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg transition-shadow" placeholder="영단어 입력 (예: apple)" autocomplete="off">
+            <p id="quiz-error" class="text-red-500 text-sm hidden mb-4 font-medium px-1 flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                틀렸습니다. 다시 시도해보세요.
+            </p>
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeQuizModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors">취소</button>
+                <button onclick="submitQuiz()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-md">정답 확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Variables ---
+        let boardSize = 9; // 4, 9, 16
+        let boxSize = 3;   // sqrt(boardSize)
+        let difficultyLevel = 5; // 1 to 10
+        let fullBoard = []; // 정답을 포함한 전체 보드
+        let currentBoard = []; // 유저가 플레이 중인 보드 상태
+        let selectedCell = null; // {r, c} 형태의 선택된 셀 좌표
+        
+        // 영단어 퀴즈 목록
+        const vocaList = [
+            { word: 'apple', meaning: '사과' },
+            { word: 'banana', meaning: '바나나' },
+            { word: 'computer', meaning: '컴퓨터' },
+            { word: 'science', meaning: '과학' },
+            { word: 'student', meaning: '학생' },
+            { word: 'teacher', meaning: '선생님' },
+            { word: 'school', meaning: '학교' },
+            { word: 'beautiful', meaning: '아름다운' },
+            { word: 'happiness', meaning: '행복' },
+            { word: 'friend', meaning: '친구' },
+            { word: 'family', meaning: '가족' },
+            { word: 'mountain', meaning: '산' },
+            { word: 'river', meaning: '강' },
+            { word: 'ocean', meaning: '바다' },
+            { word: 'sun', meaning: '태양' },
+            { word: 'moon', meaning: '달' },
+            { word: 'star', meaning: '별' },
+            { word: 'water', meaning: '물' },
+            { word: 'fire', meaning: '불' },
+            { word: 'earth', meaning: '지구' }
+        ];
+        let currentQuizWord = null;
+
+        // --- Game Initialization ---
+        function startNewGame() {
+            boardSize = parseInt(document.getElementById('size-select').value);
+            boxSize = Math.sqrt(boardSize);
+            difficultyLevel = parseInt(document.getElementById('diff-select').value);
+            selectedCell = null;
+            
+            generateSudoku();
+            renderBoard();
+            renderNumpad();
+        }
+
+        function generateSudoku() {
+            // 보드 초기화
+            fullBoard = Array.from({length: boardSize}, () => Array(boardSize).fill(0));
+            
+            // 1. 대각선 박스들을 먼저 채움 (독립적이므로 빠름)
+            fillDiagonalBoxes();
+            
+            // 2. 나머지 빈칸을 백트래킹으로 채워 완성된 정답 보드 생성
+            solveSudoku(fullBoard);
+
+            // 3. currentBoard 생성 (기본은 힌트 상태)
+            currentBoard = fullBoard.map(row => row.map(val => ({
+                val: val,
+                isClue: true,
+                isError: false
+            })));
+
+            // 4. 난이도에 따라 셀 비우기
+            removeCellsForDifficulty();
+        }
+
+        function fillDiagonalBoxes() {
+            for (let i = 0; i < boardSize; i += boxSize) {
+                fillBox(i, i);
+            }
+        }
+
+        function fillBox(rowStart, colStart) {
+            let num;
+            for (let i = 0; i < boxSize; i++) {
+                for (let j = 0; j < boxSize; j++) {
+                    do {
+                        num = Math.floor(Math.random() * boardSize) + 1;
+                    } while (!isSafeInBox(fullBoard, rowStart, colStart, num));
+                    fullBoard[rowStart + i][colStart + j] = num;
+                }
+            }
+        }
+
+        function isSafeInBox(board, rowStart, colStart, num) {
+            for (let i = 0; i < boxSize; i++) {
+                for (let j = 0; j < boxSize; j++) {
+                    if (board[rowStart + i][colStart + j] === num) return false;
+                }
+            }
+            return true;
+        }
+
+        function isSafe(board, row, col, num) {
+            // 행과 열 검사
+            for (let x = 0; x < boardSize; x++) {
+                if (board[row][x] === num) return false;
+                if (board[x][col] === num) return false;
+            }
+            // 속한 박스 검사
+            let startRow = row - (row % boxSize);
+            let startCol = col - (col % boxSize);
+            return isSafeInBox(board, startRow, startCol, num);
+        }
+
+        function solveSudoku(board) {
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    if (board[row][col] === 0) {
+                        for (let num = 1; num <= boardSize; num++) {
+                            if (isSafe(board, row, col, num)) {
+                                board[row][col] = num;
+                                if (solveSudoku(board)) return true;
+                                board[row][col] = 0;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function removeCellsForDifficulty() {
+            // 난이도(1~10)에 따라 제거할 칸 수 결정
+            const totalCells = boardSize * boardSize;
+            // 1단계: 약 30% 빈칸, 10단계: 약 75% 빈칸
+            const emptyRatio = 0.25 + (difficultyLevel * 0.05); 
+            let cellsToRemove = Math.floor(totalCells * emptyRatio);
+            
+            // 최대 제거 개수 제한 (안전장치)
+            const maxRemove = totalCells - boardSize;
+            if (cellsToRemove > maxRemove) cellsToRemove = maxRemove;
+
+            let count = cellsToRemove;
+            while (count > 0) {
+                let r = Math.floor(Math.random() * boardSize);
+                let c = Math.floor(Math.random() * boardSize);
+                
+                if (currentBoard[r][c].val !== 0) {
+                    currentBoard[r][c].val = 0;
+                    currentBoard[r][c].isClue = false;
+                    count--;
+                }
+            }
+        }
+
+        // --- Rendering ---
+        function renderBoard() {
+            const container = document.getElementById('board-container');
+            container.innerHTML = '';
+            // 크기에 따라 그리드 컬럼 설정
+            container.style.gridTemplateColumns = `repeat(${boardSize}, minmax(0, 1fr))`;
+            
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    const cellData = currentBoard[r][c];
+                    const cell = document.createElement('div');
+                    
+                    // 기본 스타일 (aspect-square로 정사각형 유지)
+                    cell.className = `sudoku-cell flex items-center justify-center font-bold cursor-pointer transition-colors select-none aspect-square `;
+                    
+                    // 폰트 크기 동적 조절
+                    if(boardSize === 4) cell.classList.add('text-3xl');
+                    else if(boardSize === 9) cell.classList.add('text-xl', 'md:text-2xl');
+                    else cell.classList.add('text-sm', 'md:text-base');
+
+                    // 굵은 보더라인 처리 (박스 구분선)
+                    cell.classList.add('border', 'border-gray-200');
+                    if (r % boxSize === 0 && r !== 0) cell.classList.add('border-t-2', 'border-t-gray-800');
+                    if (c % boxSize === 0 && c !== 0) cell.classList.add('border-l-2', 'border-l-gray-800');
+                    
+                    // 선택 및 배경색 로직
+                    if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
+                        cell.classList.add('bg-blue-300'); // 현재 선택된 셀
+                    } else if (selectedCell && (selectedCell.r === r || selectedCell.c === c || isSameBox(r, c, selectedCell.r, selectedCell.c))) {
+                        cell.classList.add('bg-blue-50'); // 같은 행,열,박스 하이라이트
+                    } else {
+                        cell.classList.add('bg-white');
+                    }
+
+                    // 텍스트 색상 및 에러 표시
+                    if (cellData.isError) {
+                        cell.classList.add('text-red-600', 'bg-red-100');
+                    } else if (cellData.isClue) {
+                        cell.classList.add('text-gray-900'); // 기본 제공된 숫자
+                    } else {
+                        cell.classList.add('text-blue-600'); // 유저가 입력한 숫자
+                    }
+
+                    if (cellData.val !== 0) {
+                        cell.textContent = cellData.val;
+                    }
+
+                    cell.onclick = () => selectCell(r, c);
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        function isSameBox(r1, c1, r2, c2) {
+            const startRow1 = r1 - (r1 % boxSize);
+            const startCol1 = c1 - (c1 % boxSize);
+            const startRow2 = r2 - (r2 % boxSize);
+            const startCol2 = c2 - (c2 % boxSize);
+            return startRow1 === startRow2 && startCol1 === startCol2;
+        }
+
+        function renderNumpad() {
+            const container = document.getElementById('numpad-container');
+            container.innerHTML = '';
+            for (let i = 1; i <= boardSize; i++) {
+                const btn = document.createElement('button');
+                // 버튼 크기를 기존의 약 2/3 수준으로 대폭 축소 (w-6 h-6, 텍스트 크기 text-sm)
+                btn.className = "w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 flex-shrink-0 bg-white text-gray-800 font-bold text-sm sm:text-base md:text-lg rounded-md sm:rounded-lg border border-gray-200 shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all active:scale-95 flex items-center justify-center";
+                btn.textContent = i;
+                btn.onclick = () => inputNumber(i);
+                container.appendChild(btn);
+            }
+        }
+
+        // --- Interaction Logic ---
+        function selectCell(r, c) {
+            selectedCell = {r, c};
+            renderBoard();
+        }
+
+        function inputNumber(num) {
+            if (!selectedCell) return;
+            const {r, c} = selectedCell;
+            if (currentBoard[r][c].isClue) return; // 기본 제공 숫자는 수정 불가
+            
+            currentBoard[r][c].val = num;
+            validateBoard();
+            renderBoard();
+            checkVictory();
+        }
+
+        function eraseCell() {
+            if (!selectedCell) return;
+            const {r, c} = selectedCell;
+            if (currentBoard[r][c].isClue) return;
+            
+            currentBoard[r][c].val = 0;
+            currentBoard[r][c].isError = false;
+            validateBoard();
+            renderBoard();
+        }
+
+        function validateBoard() {
+            // 모든 에러 초기화
+            for (let r=0; r<boardSize; r++) {
+                for (let c=0; c<boardSize; c++) {
+                    currentBoard[r][c].isError = false;
+                }
+            }
+
+            // 중복 검사
+            for (let r=0; r<boardSize; r++) {
+                for (let c=0; c<boardSize; c++) {
+                    let val = currentBoard[r][c].val;
+                    if (val === 0) continue;
+                    
+                    let isErr = false;
+                    for (let i=0; i<boardSize; i++) {
+                        // 같은 행이나 열에 중복되는 숫자가 있으면 에러
+                        if (i !== c && currentBoard[r][i].val === val) isErr = true;
+                        if (i !== r && currentBoard[i][c].val === val) isErr = true;
+                    }
+                    
+                    // 박스 검사
+                    let rStart = r - (r % boxSize);
+                    let cStart = c - (c % boxSize);
+                    for (let i=0; i<boxSize; i++) {
+                        for (let j=0; j<boxSize; j++) {
+                            let r2 = rStart + i;
+                            let c2 = cStart + j;
+                            if (r2 !== r || c2 !== c) {
+                                if (currentBoard[r2][c2].val === val) isErr = true;
+                            }
+                        }
+                    }
+                    
+                    if (isErr) currentBoard[r][c].isError = true;
+                }
+            }
+        }
+
+        function checkVictory() {
+            for (let r=0; r<boardSize; r++) {
+                for (let c=0; c<boardSize; c++) {
+                    if (currentBoard[r][c].val === 0 || currentBoard[r][c].isError) return;
+                }
+            }
+            document.getElementById('victory-modal').classList.remove('hidden');
+        }
+
+        // --- Hint & Quiz System ---
+        function useHint() {
+            if (!selectedCell) return;
+            const { r, c } = selectedCell;
+            if (currentBoard[r][c].isClue) return;
+            if (currentBoard[r][c].val === fullBoard[r][c]) return; // 이미 정답인 경우
+
+            // 힌트를 바로 주지 않고 퀴즈 모달 열기
+            openQuizModal();
+        }
+
+        function openQuizModal() {
+            const randomIndex = Math.floor(Math.random() * vocaList.length);
+            currentQuizWord = vocaList[randomIndex];
+            
+            const wordMeaning = currentQuizWord.meaning || currentQuizWord.단어; 
+            
+            document.getElementById('quiz-meaning').textContent = wordMeaning;
+            document.getElementById('quiz-input').value = '';
+            document.getElementById('quiz-error').classList.add('hidden');
+            
+            const modal = document.getElementById('quiz-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.querySelector('div').classList.remove('scale-95');
+                modal.querySelector('div').classList.add('scale-100');
+                document.getElementById('quiz-input').focus();
+            }, 50);
+        }
+
+        function closeQuizModal() {
+            const modal = document.getElementById('quiz-modal');
+            modal.querySelector('div').classList.remove('scale-100');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function submitQuiz() {
+            const answer = document.getElementById('quiz-input').value.trim().toLowerCase();
+            if (answer === currentQuizWord.word.toLowerCase()) {
+                // 정답일 경우 힌트 적용
+                closeQuizModal();
+                applyHint();
+            } else {
+                // 오답일 경우
+                document.getElementById('quiz-error').classList.remove('hidden');
+                document.getElementById('quiz-input').focus();
+            }
+        }
+
+        function applyHint() {
+            if (!selectedCell) return;
+            const { r, c } = selectedCell;
+            currentBoard[r][c].val = fullBoard[r][c]; // 힌트칸에 정답 채우기
+            currentBoard[r][c].isError = false;
+            validateBoard();
+            renderBoard();
+            checkVictory();
+        }
+
+        function closeModalAndNewGame() {
+            document.getElementById('victory-modal').classList.add('hidden');
+            startNewGame();
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('new-game-btn').addEventListener('click', startNewGame);
+        document.getElementById('btn-erase').addEventListener('click', eraseCell);
+        document.getElementById('btn-hint').addEventListener('click', useHint);
+        
+        // 크기나 난이도 변경 시 자동으로 새 게임 시작
+        document.getElementById('size-select').addEventListener('change', startNewGame);
+        document.getElementById('diff-select').addEventListener('change', startNewGame);
+
+        document.getElementById('quiz-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                submitQuiz();
+            }
+        });
+
+        // 키보드 숫자 입력 지원
+        document.addEventListener('keydown', (e) => {
+            // 모달 창이 열려있으면 무시
+            if (!document.getElementById('quiz-modal').classList.contains('hidden')) return;
+            
+            const num = parseInt(e.key);
+            if (!isNaN(num) && num >= 1 && num <= boardSize) {
+                inputNumber(num);
+            } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                eraseCell();
+            }
+        });
+
+        // Initialize First Game
+        window.onload = startNewGame;
+    </script>
+</body>
+</html>
