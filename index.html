@@ -502,7 +502,7 @@
                             </span>
                         </div>
                         <div class="flex items-center justify-between mt-2">
-                            <div class="hof-subtitle">퍼즐 해결 시간과 힌트 사용을 종합한 최고 점수 기록입니다.</div>
+                            <div class="hof-subtitle">퍼즐 해결 시간과 힌트를 종합한 학생별 최고 점수 기록입니다. (1인 1기록)</div>
                             <!-- 기간별 탭 필터 -->
                             <div class="flex gap-1">
                                 <button type="button" class="tab-btn active" id="hof-tab-all" onclick="changeHofPeriod('all')">전체</button>
@@ -1137,13 +1137,47 @@
                 return true;
             });
 
-            // 점수 내림차순 정렬 (동점 시 시간 오름차순)
-            filtered.sort((a, b) => {
-                if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
-                return (a.timeSeconds || 9999) - (b.timeSeconds || 9999);
+            // 1인 1최고점 중복 제거 (도배 방지: 동일 학생은 최고 점수 1건만 반영)
+            const uniqueMap = new Map();
+            filtered.forEach(item => {
+                const g = String(item.gradeNum ?? item.grade ?? '');
+                const c = String(item.classNum ?? item.class ?? '');
+                const rawName = String(item.name || '도전자').trim();
+                const key = `${g}_${c}_${rawName}`;
+
+                const score = parseInt(item.score, 10) || 0;
+                const time = parseInt(item.timeSeconds, 10) || 9999;
+                const hints = parseInt(item.hintsUsed, 10) || 0;
+
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, item);
+                } else {
+                    const existing = uniqueMap.get(key);
+                    const existScore = parseInt(existing.score, 10) || 0;
+                    const existTime = parseInt(existing.timeSeconds, 10) || 9999;
+                    const existHints = parseInt(existing.hintsUsed, 10) || 0;
+
+                    // 더 높은 점수이거나, 동점일 때 더 빠른 시간, 시간도 같을 때 힌트를 더 적게 사용한 기록 채택
+                    const isBetter = score > existScore ||
+                        (score === existScore && time < existTime) ||
+                        (score === existScore && time === existTime && hints < existHints);
+
+                    if (isBetter) {
+                        uniqueMap.set(key, item);
+                    }
+                }
             });
 
-            const top30 = filtered.slice(0, 30);
+            // 점수 내림차순 정렬 (동점 시 시간 오름차순, 힌트 적은 순)
+            const deduplicated = Array.from(uniqueMap.values()).sort((a, b) => {
+                const sDiff = (b.score || 0) - (a.score || 0);
+                if (sDiff !== 0) return sDiff;
+                const tDiff = (a.timeSeconds || 9999) - (b.timeSeconds || 9999);
+                if (tDiff !== 0) return tDiff;
+                return (a.hintsUsed || 0) - (b.hintsUsed || 0);
+            });
+
+            const top30 = deduplicated.slice(0, 30);
 
             if (top30.length === 0) {
                 container.innerHTML = `
