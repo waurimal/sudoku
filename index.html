@@ -749,7 +749,7 @@
                     <button type="button" onclick="changeAdminPassword()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition">
                         비밀번호 변경하기
                     </button>
-                    <p class="text-[11px] text-slate-400">기본 비밀번호: 1234, 4657, wauri1234, admin</p>
+                    <p class="text-[11px] text-slate-400">초기 비밀번호: 1234 (설정에서 변경 가능)</p>
                 </div>
             </div>
 
@@ -919,6 +919,14 @@
         // ── 3. 화면 전환 함수 (화면 밀림 현상 방지 완벽 대응) ──
         // ════════════════════════════════════════════════════════════════════
         window.showScreen = (screenId) => {
+            if (screenId === 'screen-teacher' && (!window.WaurimalAuth || !window.WaurimalAuth.isAuthenticated())) {
+                if (typeof window.openTeacherAuthModal === 'function') {
+                    window.openTeacherAuthModal();
+                } else {
+                    alert('교사 인증이 필요합니다.');
+                }
+                return;
+            }
             const screens = ['screen-home', 'screen-game', 'screen-gameover', 'screen-teacher'];
             screens.forEach(s => {
                 const el = document.getElementById(s);
@@ -1728,9 +1736,12 @@
         // ════════════════════════════════════════════════════════════════════
         // ── 14. 교사 모드 (어휘 관리 & 명예의 전당 관리) ──
         // ════════════════════════════════════════════════════════════════════
-        const ADMIN_PASSWORDS = ['1234', '4657', 'wauri1234', 'admin'];
 
         window.openTeacherAuthModal = () => {
+            if (window.WaurimalAuth && window.WaurimalAuth.isAuthenticated()) {
+                openTeacherScreen();
+                return;
+            }
             document.getElementById('teacher-pw-input').value = '';
             document.getElementById('teacher-auth-modal').classList.remove('hidden');
         };
@@ -1742,8 +1753,8 @@
         window.submitTeacherAuth = () => {
             const pw = document.getElementById('teacher-pw-input').value.trim();
             const storedPw = localStorage.getItem('sudoku_admin_pw');
-            const waurimalPw = localStorage.getItem('waurimal_admin_pw');
-            if (ADMIN_PASSWORDS.includes(pw) || (storedPw && pw === storedPw) || (waurimalPw && pw === waurimalPw) || pw === '1234' || pw === '0000') {
+            const isValid = window.WaurimalAuth ? window.WaurimalAuth.authenticate(pw) : (pw === (localStorage.getItem('waurimal_admin_pw') || storedPw || '1234'));
+            if (isValid) {
                 closeTeacherAuthModal();
                 openTeacherScreen();
             } else {
@@ -1752,6 +1763,10 @@
         };
 
         function openTeacherScreen() {
+            if (!window.WaurimalAuth || !window.WaurimalAuth.isAuthenticated()) {
+                window.openTeacherAuthModal();
+                return;
+            }
             renderTeacherWords();
             renderTeacherRecords();
             window.showScreen('screen-teacher');
@@ -1897,12 +1912,16 @@
 
         window.changeAdminPassword = () => {
             const pw = document.getElementById('t-new-password').value.trim();
-            if (!pw) {
-                alert("새 비밀번호를 입력해주세요.");
+            if (!pw || pw.length < 4) {
+                alert("비밀번호는 4자리 이상으로 설정해야 합니다.");
                 return;
             }
+            if (window.WaurimalAuth) {
+                window.WaurimalAuth.setPw(pw);
+            } else {
+                localStorage.setItem('waurimal_admin_pw', pw);
+            }
             localStorage.setItem('sudoku_admin_pw', pw);
-            localStorage.setItem('waurimal_admin_pw', pw);
             document.getElementById('t-new-password').value = '';
             alert("관리자 비밀번호가 성공적으로 변경되었습니다.");
         };
