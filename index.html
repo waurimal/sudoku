@@ -1110,6 +1110,32 @@
         // ════════════════════════════════════════════════════════════════════
         // ── 7. 실시간 명예의 전당 Top 30 시스템 ──
         // ════════════════════════════════════════════════════════════════════
+        // ── 학생 이름 개인정보 보호 마스킹 헬퍼 (예: 이서연 -> 이O연, 김철 -> 김O, 남궁민수 -> 남OO수) ──
+        function maskName(nameStr) {
+            if (!nameStr) return '도전자';
+            const str = String(nameStr).trim();
+            if (!str || str === '도전자' || str === '게스트' || str === '선생님' || str === '관리자') return str || '도전자';
+
+            const parts = str.split(/\s+/);
+            if (parts.length > 1) {
+                const rawName = parts[parts.length - 1];
+                if (!rawName.endsWith('반') && !rawName.endsWith('번') && !rawName.endsWith('학년')) {
+                    const prefix = parts.slice(0, -1).join(' ');
+                    return prefix + ' ' + maskSingleName(rawName);
+                }
+            }
+            return maskSingleName(str);
+        }
+
+        function maskSingleName(name) {
+            if (!name) return '';
+            const s = name.trim();
+            if (s.length <= 1) return s;
+            if (s.length === 2) return s[0] + 'O';
+            if (s.length === 3) return s[0] + 'O' + s[2];
+            return s[0] + 'O'.repeat(s.length - 2) + s[s.length - 1];
+        }
+
         window.changeHofPeriod = (period) => {
             currentHofPeriod = period;
             ['all', 'month', 'week'].forEach(p => {
@@ -1202,6 +1228,7 @@
                 const avatar = r.avatar || '🐥';
                 const timeStr = r.timeSeconds ? `${Math.floor(r.timeSeconds / 60)}분 ${r.timeSeconds % 60}초` : '-';
                 const sizeStr = r.size ? `${r.size}x${r.size}` : '9x9';
+                const maskedName = maskName(r.name || '도전자');
 
                 return `
                     <div class="hof-item ${itemClass}">
@@ -1210,7 +1237,7 @@
                             <span class="text-lg">${avatar}</span>
                             <div>
                                 <div class="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                    <span>${r.name || '도전자'}</span>
+                                    <span>${maskedName}</span>
                                     <span class="text-[10px] text-slate-400 font-normal">(${gradeClass})</span>
                                 </div>
                                 <div class="text-[10px] text-slate-500 font-bold flex items-center gap-2">
